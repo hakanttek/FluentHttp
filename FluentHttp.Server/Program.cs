@@ -9,5 +9,5 @@ using var loggerFactory = LoggerFactory.Create(builder =>
 
 var logger = loggerFactory.CreateLogger<HttpServer>();
 
-var server = new HttpServer("http://localhost:5000/", logger);
+var server = new HttpServer(logger).ListenOn(5000);
 await server.StartAsync();
