@@ -2,7 +2,7 @@
 {
     public static class HttpServerExtensions
     {
-        // --- Temel RFC 7231 ---
+        #region Core RFC 7231
         public static HttpServer Get(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("GET", path, handler);
 
@@ -26,12 +26,14 @@
 
         public static HttpServer Trace(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("TRACE", path, handler);
+        #endregion
 
-        // --- Ek RFC 5789 ---
+        #region Additional RFC 5789
         public static HttpServer Patch(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("PATCH", path, handler);
+        #endregion
 
-        // --- WebDAV (RFC 4918) ---
+        #region WebDAV (RFC 4918)
         public static HttpServer PropFind(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("PROPFIND", path, handler);
 
@@ -52,8 +54,9 @@
 
         public static HttpServer Unlock(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("UNLOCK", path, handler);
+        #endregion
 
-        // --- WebDAV/DeltaV/CalDAV/CardDAV ---
+        #region WebDAV/DeltaV/CalDAV/CardDAV
         public static HttpServer Search(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("SEARCH", path, handler);
 
@@ -74,5 +77,6 @@
 
         public static HttpServer Acl(this HttpServer server, string path, RequestHandler handler)
             => server.EndPoint("ACL", path, handler);
+        #endregion
     }
 }
