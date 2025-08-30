@@ -2,6 +2,8 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 
+namespace FluentHttp;
+
 public class HttpServer
 {
     private readonly HttpListener _listener;
