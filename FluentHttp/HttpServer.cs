@@ -1,6 +1,8 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Net;
+using System.Security.Principal;
 using System.Text;
-using Microsoft.Extensions.Logging;
 
 namespace FluentHttp;
 
@@ -29,9 +31,11 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
     {
         var request = context.Request;
         var response = context.Response;
-
+        
         logger?.LogInformation("Incoming request: {Method} {Url} from {RemoteEndPoint}",
             request.HttpMethod, request.Url, request.RemoteEndPoint);
+
+        logger?.LogInformation("Route: {route}", request?.Url?.AbsolutePath);
         
         string responseString = $"<html><body><h1>Hello from SimpleHttpServer at {DateTime.Now}</h1></body></html>";
         byte[] buffer = Encoding.UTF8.GetBytes(responseString);
@@ -41,6 +45,14 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         response.OutputStream.Close();
 
         logger?.LogInformation("Response sent successfully with {Length} bytes.", buffer.Length);
+    }  
+
+    private readonly ConcurrentDictionary<(string Method, string path), RequestHandler> EndPoints = new ();
+
+    public HttpServer EndPoint(string method, string path, RequestHandler handler)
+    {
+        EndPoints[(method.ToUpperInvariant(), path)] = handler;
+        return this;
     }
 
     public HttpServer ListenOn(params string[] urls)
