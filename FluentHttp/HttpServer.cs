@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Data;
 using System.Net;
-using System.Text;
 
 namespace FluentHttp;
 
@@ -46,28 +44,26 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
             "User Agent : {UserAgent}",
             request.HttpMethod,
             request.Url,
-            string.IsNullOrEmpty(route) ? "-" : route,
+            route,
             string.IsNullOrEmpty(query) ? "-" : query,
             request.RemoteEndPoint,
             request.UserAgent
         );
 
-        string responseString = $"<html><body><h1>Hello from SimpleHttpServer at {DateTime.Now}</h1></body></html>";
-        byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-
-        response.ContentLength64 = buffer.Length;
-        await response.OutputStream.WriteAsync(buffer, cancel);
-        response.OutputStream.Close();
+        string method = request.HttpMethod.ToUpperInvariant();
+        if (EndPoints.TryGetValue((method, route ?? @"\"), out var handler))
+        {
+            await handler(request, response, context.User);
+        }
 
         var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
-
         logger?.LogInformation(
             "HTTP response sent successfully\n" +
             "Status Code    : {StatusCode}\n" +
             "Content Length : {ContentLength} bytes\n" +
             "Elapsed Time   : {ElapsedMilliseconds} ms",
             response.StatusCode,
-            buffer.Length,
+            response.ContentLength64,
             elapsedMs
         );
     }
