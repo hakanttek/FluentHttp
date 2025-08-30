@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Logging;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -8,9 +9,9 @@ public static class HttpListenerRequestExtensions
 {
     public static async Task<string> TextAsync(this HttpListenerRequest request, Encoding? defaultEncoding = null, CancellationToken cancel = default)
     {
-        defaultEncoding = request.ContentEncoding ?? defaultEncoding ?? Encoding.UTF8;
+        var encoding = request.ContentEncoding ?? defaultEncoding ?? Encoding.UTF8;
 
-        using var reader = new StreamReader(request.InputStream, defaultEncoding, leaveOpen: true);
+        using var reader = new StreamReader(request.InputStream, encoding, leaveOpen: true);
         string body = await reader.ReadToEndAsync(cancel);
 
         if (request.InputStream.CanSeek)
@@ -27,5 +28,17 @@ public static class HttpListenerRequestExtensions
             return default;
 
         return JsonSerializer.Deserialize<T>(body, options);
+    }
+
+    public static async Task WriteAsync(this HttpListenerResponse response, string text, Encoding? defaultEncoding = null, string? contentType = null, CancellationToken cancel = default)
+    {
+        var encoding = response.ContentEncoding ?? defaultEncoding ?? Encoding.UTF8;
+        response.ContentType = contentType ?? $"text/plain; charset={encoding.WebName}";
+
+        byte[] buffer = encoding.GetBytes(text);
+        response.ContentLength64 = buffer.Length;
+
+        await response.OutputStream.WriteAsync(buffer, cancel);
+        await response.OutputStream.FlushAsync(cancel);
     }
 }
