@@ -55,6 +55,8 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         {
             await handler(request, response, context.User);
         }
+        else
+            await _fallback(request, response, context.User);
 
         var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
         logger?.LogInformation(
@@ -73,6 +75,18 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
     public HttpServer EndPoint(string method, string path, RequestHandler handler)
     {
         EndPoints[(method.ToUpperInvariant(), path)] = handler;
+        return this;
+    }
+
+    private RequestHandler _fallback = (req, res, usr) =>
+    {
+        res.StatusCode = 404;
+        return Task.CompletedTask;
+    };
+
+    public HttpServer Fallback(RequestHandler handler)
+    {
+        _fallback = handler;
         return this;
     }
 
