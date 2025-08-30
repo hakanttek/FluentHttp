@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
-using System.Security.Principal;
 using System.Text;
 
 namespace FluentHttp;
@@ -31,7 +30,7 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
     {
         var request = context.Request;
         var response = context.Response;
-        
+
         logger?.LogInformation("Incoming request: {Method} {Url} from {RemoteEndPoint}",
             request.HttpMethod, request.Url, request.RemoteEndPoint);
 
