@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Data;
 using System.Net;
 using System.Text;
 
@@ -28,14 +29,29 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
 
     private async Task ProcessRequestAsync(HttpListenerContext context, CancellationToken cancel = default)
     {
+        var startTime = DateTime.UtcNow;
+
         var request = context.Request;
         var response = context.Response;
 
-        logger?.LogInformation("Incoming request: {Method} {Url} from {RemoteEndPoint}",
-            request.HttpMethod, request.Url, request.RemoteEndPoint);
+        var route = request.Url?.AbsolutePath;
+        var query = request.Url?.Query;
 
-        logger?.LogInformation("Route: {route}", request?.Url?.AbsolutePath);
-        
+        logger?.LogInformation(
+            "HTTP {Method} request received\n" +
+            "URL        : {FullUrl}\n" +
+            "Route      : {Route}\n" +
+            "Query      : {Query}\n" +
+            "Remote IP  : {RemoteEndPoint}\n" +
+            "User Agent : {UserAgent}",
+            request.HttpMethod,
+            request.Url,
+            string.IsNullOrEmpty(route) ? "-" : route,
+            string.IsNullOrEmpty(query) ? "-" : query,
+            request.RemoteEndPoint,
+            request.UserAgent
+        );
+
         string responseString = $"<html><body><h1>Hello from SimpleHttpServer at {DateTime.Now}</h1></body></html>";
         byte[] buffer = Encoding.UTF8.GetBytes(responseString);
 
@@ -43,8 +59,18 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         await response.OutputStream.WriteAsync(buffer, cancel);
         response.OutputStream.Close();
 
-        logger?.LogInformation("Response sent successfully with {Length} bytes.", buffer.Length);
-    }  
+        var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+
+        logger?.LogInformation(
+            "HTTP response sent successfully\n" +
+            "Status Code    : {StatusCode}\n" +
+            "Content Length : {ContentLength} bytes\n" +
+            "Elapsed Time   : {ElapsedMilliseconds} ms",
+            response.StatusCode,
+            buffer.Length,
+            elapsedMs
+        );
+    }
 
     private readonly ConcurrentDictionary<(string Method, string path), RequestHandler> EndPoints = new ();
 
