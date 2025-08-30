@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace FluentHttp;
 
@@ -16,5 +17,15 @@ public static class HttpListenerRequestExtensions
             request.InputStream.Position = 0;
 
         return body;
+    }
+
+    public static async Task<T?> ReadJsonAsync<T>(this HttpListenerRequest request, JsonSerializerOptions? options = null, Encoding? encoding = null, CancellationToken cancel = default)
+    {
+        var body = await request.ReadBodyAsync(encoding, cancel);
+
+        if (string.IsNullOrWhiteSpace(body))
+            return default;
+
+        return JsonSerializer.Deserialize<T>(body, options);
     }
 }
