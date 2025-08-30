@@ -25,19 +25,19 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         }
     }
 
-    private async Task ProcessRequestAsync(HttpListenerContext context)
+    private async Task ProcessRequestAsync(HttpListenerContext context, CancellationToken cancel = default)
     {
         var request = context.Request;
         var response = context.Response;
 
         logger?.LogInformation("Incoming request: {Method} {Url} from {RemoteEndPoint}",
             request.HttpMethod, request.Url, request.RemoteEndPoint);
-
+        
         string responseString = $"<html><body><h1>Hello from SimpleHttpServer at {DateTime.Now}</h1></body></html>";
         byte[] buffer = Encoding.UTF8.GetBytes(responseString);
 
         response.ContentLength64 = buffer.Length;
-        await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+        await response.OutputStream.WriteAsync(buffer, cancel);
         response.OutputStream.Close();
 
         logger?.LogInformation("Response sent successfully with {Length} bytes.", buffer.Length);
