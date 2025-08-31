@@ -2,7 +2,6 @@
 using FluentHttp.Attributes;
 using FluentHttp.Models;
 using System.Net;
-using System.Security.Principal;
 
 await HttpServer.Create()
     .Get("/foo", () =>
