@@ -29,11 +29,7 @@ public static class HttpResultExtensions
 
             // ---- Attribute-based binding ----
             if (param.GetCustomAttribute<BodyAttribute>() is not null)
-            {
-                using var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8);
-                var body = await reader.ReadToEndAsync();
-                args[i] = System.Text.Json.JsonSerializer.Deserialize(body, paramType);
-            }
+                args[i] = await request.JsonAsync(paramType, cancel: cancel);
             else if (param.GetCustomAttribute<QueryAttribute>() is { } queryAttr)
             {
                 var queryParams = System.Web.HttpUtility.ParseQueryString(request.Url?.Query ?? string.Empty);

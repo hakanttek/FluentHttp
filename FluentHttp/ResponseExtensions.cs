@@ -29,6 +29,16 @@ public static class HttpListenerRequestExtensions
         return JsonSerializer.Deserialize<T>(body, options);
     }
 
+    public static async Task<object?> JsonAsync(this HttpListenerRequest request, Type returnType, JsonSerializerOptions? options = null, Encoding? defaultEncoding = null, CancellationToken cancel = default)
+    {
+        var body = await request.TextAsync(defaultEncoding, cancel);
+
+        if (string.IsNullOrWhiteSpace(body))
+            return default;
+
+        return JsonSerializer.Deserialize(body, returnType, options);
+    }
+
     public static async Task TextAsync(this HttpListenerResponse response, string text, Encoding? defaultEncoding = null, string? contentType = null, CancellationToken cancel = default)
     {
         var encoding = response.ContentEncoding ?? defaultEncoding ?? Encoding.UTF8;
