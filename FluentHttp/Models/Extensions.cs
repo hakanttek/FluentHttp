@@ -7,7 +7,12 @@ public static class Extensions
 {
     public static HttpResult Data(this HttpStatusCode statusCode, object data) => new((int)statusCode, data);
 
-    internal static async Task<HttpResult> InvokeAsHttpResultAsync(this IServiceProvider provider, Delegate func)
+    internal static async Task<HttpResult> InvokeAsHttpResultAsync(
+        this IServiceProvider provider,
+        Delegate func,
+        HttpListenerRequest request,
+        HttpListenerResponse response,
+        CancellationToken cancel = default)
     {
         var method = func.Method;
         var parameters = method.GetParameters();
@@ -15,12 +20,30 @@ public static class Extensions
         var args = new object?[parameters.Length];
         for (int i = 0; i < parameters.Length; i++)
         {
-            args[i] = provider.GetService(parameters[i].ParameterType)
-                ?? throw new InvalidOperationException(
-                    $"Unable to resolve service for type '{parameters[i].ParameterType.FullName}' " +
-                    $"while invoking method '{method.DeclaringType?.FullName}.{method.Name}'. " +
-                    "Ensure the service is registered in the dependency injection container."
-                );
+            var param = parameters[i];
+            var paramType = param.ParameterType;
+
+            if (paramType == typeof(CancellationToken))
+            {
+                args[i] = cancel;
+            }
+            else if (paramType == typeof(HttpListenerRequest))
+            {
+                args[i] = request;
+            }
+            else if (paramType == typeof(HttpListenerResponse))
+            {
+                args[i] = response;
+            }
+            else
+            {
+                args[i] = provider.GetService(paramType)
+                    ?? throw new InvalidOperationException(
+                        $"Unable to resolve service for type '{paramType.FullName}' " +
+                        $"while invoking method '{method.DeclaringType?.FullName}.{method.Name}'. " +
+                        "Ensure the service is registered in the dependency injection container."
+                    );
+            }
         }
 
         object? result;
