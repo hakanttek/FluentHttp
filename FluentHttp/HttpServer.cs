@@ -1,7 +1,10 @@
-﻿using FluentHttp.Models;
+﻿using FluentHttp.Attributes;
+using FluentHttp.Models;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Reflection;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 
@@ -53,14 +56,9 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
             request.UserAgent
         );
 
-        HttpResult? handlerRes;
         string method = request.HttpMethod.ToUpperInvariant();
-        if (EndPoints.TryGetValue((method, route ?? @"\"), out var handler))
-        {
-            handlerRes = await provider.InvokeAsHttpResultAsync(handler, _jsonSerializerOptions, _bodyEncoding, request, response, context.User, cancel);
-        }
-        else
-            handlerRes = await provider.InvokeAsHttpResultAsync(_fallback, _jsonSerializerOptions, _bodyEncoding, request, response, context.User, cancel);
+        EndPoints.TryGetValue((method, route ?? @"\"), out var handler);
+        var handlerRes = await InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
 
         if(handlerRes is not null)
         {
@@ -140,4 +138,83 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         return this;
     }
     #endregion
+
+    internal async Task<HttpResult?> InvokeAsHttpResultAsync(
+    Delegate? handler,
+    HttpListenerRequest request,
+    HttpListenerResponse response,
+    IPrincipal? user,
+    CancellationToken cancel = default)
+    {
+        handler ??= _fallback;
+        var method = handler.Method;
+        var parameters = method.GetParameters();
+
+        var args = new object?[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            var param = parameters[i];
+            var paramType = param.ParameterType;
+
+            // ---- Attribute-based binding ----
+            if (param.GetCustomAttribute<BodyAttribute>() is not null)
+                args[i] = await request.JsonAsync(paramType, _jsonSerializerOptions, _bodyEncoding, cancel);
+            else if (param.GetCustomAttribute<QueryAttribute>() is { } queryAttr)
+            {
+                var queryParams = System.Web.HttpUtility.ParseQueryString(request.Url?.Query ?? string.Empty);
+                var name = queryAttr.Name ?? param.Name!;
+                var value = queryParams[name];
+                args[i] = ConvertTo(value, paramType);
+            }
+            else if (param.GetCustomAttribute<HeaderAttribute>() is { } headerAttr)
+            {
+                var name = headerAttr.Name ?? param.Name!;
+                var value = request.Headers[name];
+                args[i] = ConvertTo(value, paramType);
+            }
+
+            // ---- Special parameters ----
+            else if (paramType == typeof(CancellationToken))
+                args[i] = cancel;
+            else if (paramType == typeof(HttpListenerRequest))
+                args[i] = request;
+            else if (paramType == typeof(HttpListenerResponse))
+
+                args[i] = response;
+            else if (paramType == typeof(IPrincipal))
+                args[i] = user;
+            else
+                args[i] = provider.GetService(paramType)
+                    ?? throw new InvalidOperationException(
+                        $"Unable to resolve service for type '{paramType.FullName}' " +
+                        $"while invoking method '{method.DeclaringType?.FullName}.{method.Name}'. " +
+                        "Ensure the service is registered in the dependency injection container."
+                    );
+        }
+
+        object? result;
+
+        try
+        {
+            result = method.Invoke(handler.Target, args);
+        }
+        catch (TargetInvocationException ex)
+        {
+            throw ex.InnerException ?? ex; // cleaner catch
+        }
+
+        return await result.NormalizeToHttpResultAsync();
+    }
+
+    /// <summary>
+    /// String value -> converts to target type (int, Guid, bool, etc.)
+    /// </summary>
+    private static object? ConvertTo(string? value, Type targetType)
+    {
+        if (value == null) return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        if (targetType == typeof(string)) return value;
+
+        var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        return Convert.ChangeType(value, underlying);
+    }
 }
