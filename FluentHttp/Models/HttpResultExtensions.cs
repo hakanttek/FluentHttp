@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace FluentHttp.Models;
 
-public static class Extensions
+public static class HttpResultExtensions
 {
     public static HttpResult Data(this HttpStatusCode statusCode, object data) => new((int)statusCode, data);
 
