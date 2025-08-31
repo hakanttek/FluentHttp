@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Reflection;
 
 namespace FluentHttp.Models;
 
@@ -8,9 +9,4 @@ public record HttpResult(int StatusCode, object? Data = null)
         : this((int)statusCode, data)
     {
     }
-}
-
-public static class Extensions
-{
-    public static HttpResult Data(this HttpStatusCode statusCode, object data) => new ((int)statusCode, data);
 }
