@@ -6,12 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 
 await HttpServer.Create(options => options.AddScoped<FooService>())
-.Get("/foo", () =>
+.Get("/foo", async (FooService service, [Query] int? bar, [Query] string? qux) =>
 {
-    var res = new { message = "Hello, World!" };
-    return HttpStatusCode.OK.Data(res);
+    var foos = await service.GetAsync(bar, qux);
+    return foos.Any() 
+        ? HttpStatusCode.OK.Data(foos)
+        : HttpStatusCode.NotFound.Data("No foos found!");
 })
-.Get("/bar", ([Query] int baz) => HttpStatusCode.OK.Data(baz))
 .Fallback(() => HttpStatusCode.NotFound.Data(new { message = "Not found!" }))
 .ListenOn(5000)
 .StartAsync();
