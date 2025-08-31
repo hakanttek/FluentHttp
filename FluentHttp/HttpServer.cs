@@ -131,8 +131,10 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
             {
                 response.StatusCode = handlerRes.StatusCode;
                 if (handlerRes.Data is not null)
-                    await response.JsonAsync(handlerRes.Data, cancel: cancel);
+                    await response.JsonAsync(handlerRes.Data, _bodyEncoding, _jsonSerializerOptions, cancel);
             }
+            else
+                context.Response.OutputStream.Close();
 
             var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
             logger?.LogInformation(
@@ -148,6 +150,7 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         catch(Exception ex)
         {
             await _handleException(context);
+            context.Response.OutputStream.Close();
             logger?.LogError(ex, "An unexpected error occurred while processing a request.");
         }
     }
