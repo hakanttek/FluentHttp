@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FluentHttp\FluentHttp.csproj" />
+    <ProjectReference Include="..\..\src\FluentHttp\FluentHttp.csproj" />
   </ItemGroup>
 
 </Project>
