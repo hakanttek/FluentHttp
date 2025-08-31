@@ -133,8 +133,8 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
                 if (handlerRes.Data is not null)
                     await response.JsonAsync(handlerRes.Data, _bodyEncoding, _jsonSerializerOptions, cancel);
             }
-            else
-                context.Response.OutputStream.Close();
+
+            context.Response.OutputStream.Close();
 
             var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
             logger?.LogInformation(
@@ -239,11 +239,20 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
     /// </summary>
     private static object? ConvertTo(string? value, Type targetType)
     {
-        if (value == null) return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
-        if (targetType == typeof(string)) return value;
+        try
+        {
+            if (value == null)
+                return null;
+            if (targetType == typeof(string))
+                return value;
 
-        var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        return Convert.ChangeType(value, underlying);
+            var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            return Convert.ChangeType(value, underlying);
+        }
+        catch
+        {
+            return null;
+        }
     }
     #endregion
 }

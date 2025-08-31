@@ -4,7 +4,7 @@ namespace FluentHttp.Models;
 
 public static class HttpResultExtensions
 {
-    public static HttpResult Data(this HttpStatusCode statusCode, object data) => new((int)statusCode, data);
+    public static HttpResult Data(this HttpStatusCode statusCode, object? data) => new((int)statusCode, data);
 
     internal static async Task<HttpResult?> NormalizeToHttpResultAsync(this object? output)
     {
