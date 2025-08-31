@@ -70,21 +70,21 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         );
     }
 
-    private readonly ConcurrentDictionary<(string Method, string path), RequestHandler> EndPoints = new ();
+    private readonly ConcurrentDictionary<(string Method, string path), RequestRawHandler> EndPoints = new ();
 
-    public HttpServer EndPoint(string method, string path, RequestHandler handler)
+    public HttpServer EndPoint(string method, string path, RequestRawHandler handler)
     {
         EndPoints[(method.ToUpperInvariant(), path)] = handler;
         return this;
     }
 
-    private RequestHandler _fallback = (req, res, usr, cancel) =>
+    private RequestRawHandler _fallback = (req, res, usr, cancel) =>
     {
         res.StatusCode = 404;
         return Task.CompletedTask;
     };
 
-    public HttpServer Fallback(RequestHandler handler)
+    public HttpServer Fallback(RequestRawHandler handler)
     {
         _fallback = handler;
         return this;
