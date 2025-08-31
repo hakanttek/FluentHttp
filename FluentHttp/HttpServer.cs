@@ -84,9 +84,9 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
 
         while (true)
         {
+            HttpListenerContext context = await listener.GetContextAsync();
             try
             {
-                HttpListenerContext context = await listener.GetContextAsync();
                 _ = ProcessRequestAsync(context); // fire & forget
             }
             catch (Exception ex)
@@ -98,50 +98,58 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
 
     private async Task ProcessRequestAsync(HttpListenerContext context, CancellationToken cancel = default)
     {
-        var startTime = DateTime.UtcNow;
-
-        var request = context.Request;
-        var response = context.Response;
-
-        var route = request.Url?.AbsolutePath;
-        var query = request.Url?.Query;
-
-        logger?.LogInformation(
-            "HTTP {Method} request received\n" +
-            "URL        : {FullUrl}\n" +
-            "Route      : {Route}\n" +
-            "Query      : {Query}\n" +
-            "Remote IP  : {RemoteEndPoint}\n" +
-            "User Agent : {UserAgent}",
-            request.HttpMethod,
-            request.Url,
-            route,
-            string.IsNullOrEmpty(query) ? "-" : query,
-            request.RemoteEndPoint,
-            request.UserAgent
-        );
-
-        string method = request.HttpMethod.ToUpperInvariant();
-        EndPoints.TryGetValue((method, route ?? @"\"), out var handler);
-        var handlerRes = await InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
-
-        if (handlerRes is not null)
+        try
         {
-            response.StatusCode = handlerRes.StatusCode;
-            if (handlerRes.Data is not null)
-                await response.JsonAsync(handlerRes.Data, cancel: cancel);
-        }
+            var startTime = DateTime.UtcNow;
 
-        var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
-        logger?.LogInformation(
-            "HTTP response sent successfully\n" +
-            "Status Code    : {StatusCode}\n" +
-            "Content Length : {ContentLength} bytes\n" +
-            "Elapsed Time   : {ElapsedMilliseconds} ms",
-            response.StatusCode,
-            response.ContentLength64,
-            elapsedMs
-        );
+            var request = context.Request;
+            var response = context.Response;
+
+            var route = request.Url?.AbsolutePath;
+            var query = request.Url?.Query;
+
+            logger?.LogInformation(
+                "HTTP {Method} request received\n" +
+                "URL        : {FullUrl}\n" +
+                "Route      : {Route}\n" +
+                "Query      : {Query}\n" +
+                "Remote IP  : {RemoteEndPoint}\n" +
+                "User Agent : {UserAgent}",
+                request.HttpMethod,
+                request.Url,
+                route,
+                string.IsNullOrEmpty(query) ? "-" : query,
+                request.RemoteEndPoint,
+                request.UserAgent
+            );
+
+            string method = request.HttpMethod.ToUpperInvariant();
+            EndPoints.TryGetValue((method, route ?? @"\"), out var handler);
+            var handlerRes = await InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
+
+            if (handlerRes is not null)
+            {
+                response.StatusCode = handlerRes.StatusCode;
+                if (handlerRes.Data is not null)
+                    await response.JsonAsync(handlerRes.Data, cancel: cancel);
+            }
+
+            var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            logger?.LogInformation(
+                "HTTP response sent successfully\n" +
+                "Status Code    : {StatusCode}\n" +
+                "Content Length : {ContentLength} bytes\n" +
+                "Elapsed Time   : {ElapsedMilliseconds} ms",
+                response.StatusCode,
+                response.ContentLength64,
+                elapsedMs
+            );
+        }
+        catch(Exception ex)
+        {
+            await _handleException(context);
+            logger?.LogError(ex, "An unexpected error occurred while processing a request.");
+        }
     }
 
     internal async Task<HttpResult?> InvokeAsHttpResultAsync(
@@ -209,6 +217,18 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         }
 
         return await result.NormalizeToHttpResultAsync();
+    }
+
+    private Func<HttpListenerContext, Task> _handleException = async context =>
+    {
+        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+        await context.Response.JsonAsync("Internal server error");
+    };
+
+    public HttpServer HandleException(Func<HttpListenerContext, Task> handle)
+    {
+        _handleException = handle;
+        return this;
     }
 
     /// <summary>
