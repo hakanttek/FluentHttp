@@ -12,6 +12,71 @@ namespace FluentHttp;
 
 public partial class HttpServer(HttpListener listener, IServiceProvider provider, ILogger<HttpServer>? logger = null)
 {
+    #region End Points
+    private readonly ConcurrentDictionary<(string Method, string path), Delegate> EndPoints = new();
+
+    public HttpServer EndPoint(string method, string path, Delegate handler)
+    {
+        EndPoints[(method.ToUpperInvariant(), path)] = handler;
+        return this;
+    }
+
+    private Delegate _fallback = () => HttpStatusCode.NotFound;
+
+    public HttpServer Fallback(Delegate handler)
+    {
+        _fallback = handler;
+        return this;
+    }
+    #endregion
+
+    #region Port
+    public HttpServer ListenOn(params string[] urls)
+    {
+        foreach (var url in urls)
+            listener.Prefixes.Add(url);
+        return this;
+    }
+
+    public HttpServer ListenOn(params int[] ports)
+    {
+        foreach (var port in ports)
+            listener.Prefixes.Add($"http://localhost:{port}/");
+        return this;
+    }
+    #endregion
+
+    #region JSON Serialization Options
+    private JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    public HttpServer JsonSerializerOptions(Action<JsonSerializerOptions> configure)
+    {
+        configure.Invoke(_jsonSerializerOptions);
+        return this;
+    }
+
+    public HttpServer JsonSerializerOptions(JsonSerializerOptions options)
+    {
+        _jsonSerializerOptions = options;
+        return this;
+    }
+    #endregion
+
+    #region Body Encoding
+    private Encoding _bodyEncoding = Encoding.UTF8;
+
+    public HttpServer BodyEncoding(Encoding encoding)
+    {
+        _bodyEncoding = encoding;
+        return this;
+    }
+    #endregion
+
+    #region Process
     public async Task StartAsync()
     {
         listener.Start();
@@ -60,7 +125,7 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         EndPoints.TryGetValue((method, route ?? @"\"), out var handler);
         var handlerRes = await InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
 
-        if(handlerRes is not null)
+        if (handlerRes is not null)
         {
             response.StatusCode = handlerRes.StatusCode;
             if (handlerRes.Data is not null)
@@ -78,66 +143,6 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
             elapsedMs
         );
     }
-
-    private readonly ConcurrentDictionary<(string Method, string path), Delegate> EndPoints = new ();
-
-    public HttpServer EndPoint(string method, string path, Delegate handler)
-    {
-        EndPoints[(method.ToUpperInvariant(), path)] = handler;
-        return this;
-    }
-
-    private Delegate _fallback = () => HttpStatusCode.NotFound;
-
-    public HttpServer Fallback(Delegate handler)
-    {
-        _fallback = handler;
-        return this;
-    }
-
-    public HttpServer ListenOn(params string[] urls)
-    {
-        foreach (var url in urls)
-            listener.Prefixes.Add(url);
-        return this;
-    }
-
-    public HttpServer ListenOn(params int[] ports)
-    {
-        foreach (var port in ports)
-            listener.Prefixes.Add($"http://localhost:{port}/");
-        return this;
-    }
-
-    #region JSON Serialization Options
-    private JsonSerializerOptions _jsonSerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true
-    };
-
-    public HttpServer JsonSerializerOptions(Action<JsonSerializerOptions> configure)
-    {
-        configure.Invoke(_jsonSerializerOptions);
-        return this;
-    }
-
-    public HttpServer JsonSerializerOptions(JsonSerializerOptions options)
-    {
-        _jsonSerializerOptions = options;
-        return this;
-    }
-    #endregion
-
-    #region Body Encoding
-    private Encoding _bodyEncoding = Encoding.UTF8;
-
-    public HttpServer BodyEncoding(Encoding encoding)
-    {
-        _bodyEncoding = encoding;
-        return this;
-    }
-    #endregion
 
     internal async Task<HttpResult?> InvokeAsHttpResultAsync(
     Delegate? handler,
@@ -217,4 +222,5 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
         return Convert.ChangeType(value, underlying);
     }
+    #endregion
 }
