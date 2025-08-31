@@ -1,6 +1,8 @@
-﻿using System.Net;
+﻿using FluentHttp.Attributes;
+using System.Net;
 using System.Reflection;
 using System.Security.Principal;
+using System.Text;
 
 namespace FluentHttp.Models;
 
@@ -25,7 +27,29 @@ public static class HttpResultExtensions
             var param = parameters[i];
             var paramType = param.ParameterType;
 
-            if (paramType == typeof(CancellationToken))
+            // ---- Attribute-based binding ----
+            if (param.GetCustomAttribute<BodyAttribute>() is not null)
+            {
+                using var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8);
+                var body = await reader.ReadToEndAsync();
+                args[i] = System.Text.Json.JsonSerializer.Deserialize(body, paramType);
+            }
+            else if (param.GetCustomAttribute<QueryAttribute>() is { } queryAttr)
+            {
+                var queryParams = System.Web.HttpUtility.ParseQueryString(request.Url?.Query ?? string.Empty);
+                var name = queryAttr.Name ?? param.Name!;
+                var value = queryParams[name];
+                args[i] = ConvertTo(value, paramType);
+            }
+            else if (param.GetCustomAttribute<HeaderAttribute>() is { } headerAttr)
+            {
+                var name = headerAttr.Name ?? param.Name!;
+                var value = request.Headers[name];
+                args[i] = ConvertTo(value, paramType);
+            }
+
+            // ---- Special parameters ----
+            else if (paramType == typeof(CancellationToken))
                 args[i] = cancel;
             else if (paramType == typeof(HttpListenerRequest))
                 args[i] = request;
@@ -57,6 +81,18 @@ public static class HttpResultExtensions
         return await NormalizeToHttpResultAsync(result);
     }
 
+    /// <summary>
+    /// String value -> converts to target type (int, Guid, bool, etc.)
+    /// </summary>
+    private static object? ConvertTo(string? value, Type targetType)
+    {
+        if (value == null) return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        if (targetType == typeof(string)) return value;
+
+        var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        return Convert.ChangeType(value, underlying);
+    }
+
     private static async Task<HttpResult?> NormalizeToHttpResultAsync(object? output)
     {
         switch (output)
@@ -85,5 +121,4 @@ public static class HttpResultExtensions
                 );
         }
     }
-
 }
