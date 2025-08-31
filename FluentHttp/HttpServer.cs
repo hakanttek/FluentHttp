@@ -1,11 +1,11 @@
-﻿using FluentHttp.Handlers;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
+using FluentHttp.Models;
 
 namespace FluentHttp;
 
-public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logger = null)
+public partial class HttpServer(HttpListener listener, IServiceProvider provider, ILogger<HttpServer>? logger = null)
 {
     public async Task StartAsync()
     {
@@ -51,13 +51,21 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
             request.UserAgent
         );
 
+        HttpResult? handlerRes;
         string method = request.HttpMethod.ToUpperInvariant();
         if (EndPoints.TryGetValue((method, route ?? @"\"), out var handler))
         {
-            await handler(request, response, context.User, cancel);
+            handlerRes = await provider.InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
         }
         else
-            await _fallback(request, response, context.User, cancel);
+            handlerRes = await provider.InvokeAsHttpResultAsync(_fallback, request, response, context.User, cancel);
+
+        if(handlerRes is not null)
+        {
+            response.StatusCode = handlerRes.StatusCode;
+            if (handlerRes.Data is not null)
+                await response.JsonAsync(handlerRes.Data, cancel: cancel);
+        }
 
         var elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
         logger?.LogInformation(
@@ -71,21 +79,17 @@ public partial class HttpServer(HttpListener listener, ILogger<HttpServer>? logg
         );
     }
 
-    private readonly ConcurrentDictionary<(string Method, string path), RequestRawHandler> EndPoints = new ();
+    private readonly ConcurrentDictionary<(string Method, string path), Delegate> EndPoints = new ();
 
-    public HttpServer EndPoint(string method, string path, RequestRawHandler handler)
+    public HttpServer EndPoint(string method, string path, Delegate handler)
     {
         EndPoints[(method.ToUpperInvariant(), path)] = handler;
         return this;
     }
 
-    private RequestRawHandler _fallback = (req, res, usr, cancel) =>
-    {
-        res.StatusCode = 404;
-        return Task.CompletedTask;
-    };
+    private Delegate _fallback = () => HttpStatusCode.NotFound;
 
-    public HttpServer Fallback(RequestRawHandler handler)
+    public HttpServer Fallback(Delegate handler)
     {
         _fallback = handler;
         return this;

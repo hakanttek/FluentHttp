@@ -1,15 +1,14 @@
 ﻿using FluentHttp;
+using FluentHttp.Models;
+using System.Net;
+using System.Security.Principal;
 
 await HttpServer.Create()
-    .Get("/foo", async (request, response, user, cancel) =>
+    .Get("/foo", () =>
     {
-        response.StatusCode = 200;
-        await response.JsonAsync(new { message = "Hello, World!" }, cancel: cancel);
+        var res = new { message = "Hello, World!" };
+        return HttpStatusCode.OK.Data(res);
     })
-    .Fallback(async (request, response, user, cancel) =>
-    {
-        response.StatusCode = 404;
-        await response.JsonAsync(new { message = "Not found!" }, cancel: cancel);
-    })
+    .Fallback(() => HttpStatusCode.NotFound.Data(new { message = "Not found!" }))
     .ListenOn(5000)
     .StartAsync();
