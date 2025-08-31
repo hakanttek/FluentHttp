@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using FluentHttp.Handlers;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
 

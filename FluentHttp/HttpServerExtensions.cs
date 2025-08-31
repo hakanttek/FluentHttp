@@ -1,4 +1,6 @@
-﻿namespace FluentHttp
+﻿using FluentHttp.Handlers;
+
+namespace FluentHttp
 {
     public static class HttpServerExtensions
     {
