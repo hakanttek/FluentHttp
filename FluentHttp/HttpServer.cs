@@ -1,7 +1,9 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using FluentHttp.Models;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
-using FluentHttp.Models;
+using System.Text;
+using System.Text.Json;
 
 namespace FluentHttp;
 
@@ -55,10 +57,10 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
         string method = request.HttpMethod.ToUpperInvariant();
         if (EndPoints.TryGetValue((method, route ?? @"\"), out var handler))
         {
-            handlerRes = await provider.InvokeAsHttpResultAsync(handler, request, response, context.User, cancel);
+            handlerRes = await provider.InvokeAsHttpResultAsync(handler, _jsonSerializerOptions, _bodyEncoding, request, response, context.User, cancel);
         }
         else
-            handlerRes = await provider.InvokeAsHttpResultAsync(_fallback, request, response, context.User, cancel);
+            handlerRes = await provider.InvokeAsHttpResultAsync(_fallback, _jsonSerializerOptions, _bodyEncoding, request, response, context.User, cancel);
 
         if(handlerRes is not null)
         {
@@ -108,4 +110,34 @@ public partial class HttpServer(HttpListener listener, IServiceProvider provider
             listener.Prefixes.Add($"http://localhost:{port}/");
         return this;
     }
+
+    #region JSON Serialization Options
+    private JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    public HttpServer JsonSerializerOptions(Action<JsonSerializerOptions> configure)
+    {
+        configure.Invoke(_jsonSerializerOptions);
+        return this;
+    }
+
+    public HttpServer JsonSerializerOptions(JsonSerializerOptions options)
+    {
+        _jsonSerializerOptions = options;
+        return this;
+    }
+    #endregion
+
+    #region Body Encoding
+    private Encoding _bodyEncoding = Encoding.UTF8;
+
+    public HttpServer BodyEncoding(Encoding encoding)
+    {
+        _bodyEncoding = encoding;
+        return this;
+    }
+    #endregion
 }

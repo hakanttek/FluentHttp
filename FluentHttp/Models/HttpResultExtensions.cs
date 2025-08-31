@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
 
 namespace FluentHttp.Models;
 
@@ -13,6 +14,8 @@ public static class HttpResultExtensions
     internal static async Task<HttpResult?> InvokeAsHttpResultAsync(
         this IServiceProvider provider,
         Delegate func,
+        JsonSerializerOptions jSerializerOptions,
+        Encoding bodyEncoding,
         HttpListenerRequest request,
         HttpListenerResponse response,
         IPrincipal? user,
@@ -29,7 +32,7 @@ public static class HttpResultExtensions
 
             // ---- Attribute-based binding ----
             if (param.GetCustomAttribute<BodyAttribute>() is not null)
-                args[i] = await request.JsonAsync(paramType, cancel: cancel);
+                args[i] = await request.JsonAsync(paramType, jSerializerOptions, bodyEncoding, cancel);
             else if (param.GetCustomAttribute<QueryAttribute>() is { } queryAttr)
             {
                 var queryParams = System.Web.HttpUtility.ParseQueryString(request.Url?.Query ?? string.Empty);
